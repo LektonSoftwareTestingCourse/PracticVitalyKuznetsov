@@ -1,0 +1,51 @@
+# ===========================================================================
+#  Модель попарного тестирования — Card Management Service (ядро СМП)
+#  Источник: tz/05-card-management.md
+#
+#  Полный перебор: 4 x 4 x 3 x 4 x 4 x 2 = 1 536 комбинаций
+#
+#  Генерация:  pict model.txt > cases.txt
+#  Резерв:     python ../generate.py model.txt cases.txt
+# ===========================================================================
+
+# --- Параметры -------------------------------------------------------------
+
+# Операция CRUD над картой
+operation:          create, get, patch, delete
+
+# Состояние записи о карте в PostgreSQL
+card_record:        absent, active, blocked, deleted
+
+# Формат PAN в пути запроса: Luhn + длина (16 цифр)
+pan_format:         valid_luhn, invalid_luhn, wrong_length
+
+# Тело запроса: полное, частичное (PATCH), с невалидным полем, пустое
+request_payload:    full, partial, invalid_field, empty
+
+# Изменение лимитов и баланса в PATCH (в т. ч. отрицательные значения)
+limit_change:       none, increase, decrease, negative
+
+# Состояние брокера RabbitMQ для outbox-публикации карточных событий
+event_broker:       available, unavailable
+
+# --- Ограничения -----------------------------------------------------------
+
+# C1. Создание: записи ещё нет, тело полное, PAN генерируется сервисом
+#     (bin + 9 цифр + контрольная цифра по алгоритму Луна), лимиты не меняются.
+IF [operation] = "create" THEN [card_record] = "absent" AND [request_payload] = "full" AND [pan_format] = "valid_luhn" AND [limit_change] = "none";
+
+# C2. Мягко удалённая карта (status = DELETED) не возвращается в GET и не
+#     участвует в операциях, кроме попытки чтения по PAN.
+IF [card_record] = "deleted" THEN [operation] = "get";
+
+# C3. У операций чтения нет тела запроса.
+IF [operation] = "get" THEN [request_payload] = "empty";
+
+# C4. У операции удаления нет тела запроса.
+IF [operation] = "delete" THEN [request_payload] = "empty";
+
+# C5. Частичное обновление (передаются только изменяемые поля) — только PATCH.
+IF [request_payload] = "partial" THEN [operation] = "patch";
+
+# C6. Лимиты и баланс изменяются только операцией PATCH.
+IF [limit_change] <> "none" THEN [operation] = "patch";

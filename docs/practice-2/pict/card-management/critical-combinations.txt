@@ -1,0 +1,23 @@
+# Критичные сочетания, добавленные в набор вручную (Card Management).
+#
+# Попарное покрытие НЕ гарантирует взаимодействия трёх и более параметров
+# (см. test-design.md, раздел «Ограничения техники»). Ниже — сочетания,
+# которые команда считает рисковыми и добавляет в набор поверх генерации.
+#
+# Формат — TSV без строки заголовка, порядок колонок как в cases.txt:
+# operation  card_record  pan_format  request_payload  limit_change  event_broker
+
+# CR-1: happy-path частичного обновления существующей карты (только PATCH, изменяемые поля)
+patch	active	valid_luhn	partial	increase	available
+
+# CR-2: полное обновление при недоступном брокере → outbox retry → FAILED
+patch	active	valid_luhn	full	decrease	unavailable
+
+# CR-3: PATCH карты в статусе BLOCKED (карта доступна для обновления)
+patch	blocked	valid_luhn	partial	decrease	available
+
+# CR-4: мягкое удаление активной карты + публикация события
+delete	active	valid_luhn	empty	none	available
+
+# CR-5: чтение существующей активной карты
+get	active	valid_luhn	empty	none	available

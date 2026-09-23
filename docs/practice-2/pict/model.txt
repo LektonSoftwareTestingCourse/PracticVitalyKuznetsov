@@ -1,0 +1,66 @@
+# ===========================================================================
+#  Модель попарного тестирования — Authorization Service (ядро СМП)
+#  Источник: tz/04-authorization.md (алгоритм, шаги 1-7)
+#
+#  Полный перебор: 2 x 4 x 3 x 3 x 3 x 3 x 3 x 2 x 2 x 3 = 23 328 комбинаций
+#
+#  Генерация:  pict model.txt > cases.txt
+#  Резерв:     python ../generate.py model.txt cases.txt
+# ===========================================================================
+
+# --- Параметры -------------------------------------------------------------
+
+# Шаг 1: результат обращения к Card Management (GET /api/cards/{pan})
+card_lookup:        found, not_found
+
+# Шаг 2: статус карты (Card Management, статусная модель)
+card_status:        ACTIVE, INACTIVE, BLOCKED, EXPIRED
+
+# Шаг 3: срок действия expiryDate (MMYY) относительно текущего месяца
+expiry:             valid, current_month, expired
+
+# Шаг 4: сумма транзакции относительно дневного лимита dailyLimit
+amount_vs_daily:    below, equal, above
+
+# Шаг 5: сумма транзакции относительно месячного лимита monthlyLimit
+amount_vs_monthly:  below, equal, above
+
+# Шаг 6: сумма транзакции относительно доступного баланса availableBalance
+amount_vs_balance:  below, equal, above
+
+# Состояние счётчика limit_usage за сегодня (таблица limit_usage)
+daily_usage:        no_usage, partial, at_limit
+
+# Обогащение issuerId через Bin Lookup Service (timeout 3s/5s, retry, fallback)
+bin_lookup:         available, unavailable
+
+# Доступность Card Management
+cms_availability:   ok, timeout
+
+# Контекст запроса (канал инициирования транзакции)
+terminal_type:      pos, atm, ecom
+
+# --- Ограничения -----------------------------------------------------------
+
+# C1. Карта не найдена — алгоритм прерывается на шаге 1 (responseCode 14),
+#     остальные проверки не выполняются.
+IF [card_lookup] = "not_found" THEN [card_status] = "ACTIVE" AND [expiry] = "valid" AND [amount_vs_daily] = "below" AND [amount_vs_monthly] = "below" AND [amount_vs_balance] = "below" AND [daily_usage] = "no_usage";
+
+# C2. Карта не в статусе ACTIVE отклоняется на шаге 2 (INACTIVE / BLOCKED / 54),
+#     лимиты и баланс не проверяются.
+IF [card_status] <> "ACTIVE" THEN [amount_vs_daily] = "below" AND [amount_vs_monthly] = "below" AND [amount_vs_balance] = "below" AND [daily_usage] = "no_usage";
+
+# C3. Статус EXPIRED всегда сопровождается просроченным expiryDate.
+IF [card_status] = "EXPIRED" THEN [expiry] = "expired";
+
+# C4. Просроченный срок действия отклоняется на шаге 3 (responseCode 54),
+#     то есть раньше проверки баланса на шаге 6.
+IF [expiry] = "expired" THEN [amount_vs_balance] = "below";
+
+# C5. Исчерпанный дневной лимит (daily_amount = dailyLimit) означает, что
+#     любая сумма заведомо превышает dailyLimit — проверка шага 4 всегда даёт "above".
+IF [daily_usage] = "at_limit" THEN [amount_vs_daily] = "above";
+
+# C6. При недоступности Card Management карта не может быть получена
+#     (DECLINED, responseCode 05, ISSUER_TIMEOUT) — это ветка "not_found".
+IF [cms_availability] = "timeout" THEN [card_lookup] = "not_found";

@@ -1,0 +1,21 @@
+# Критичные сочетания, добавленные в набор вручную (Authorization).
+#
+# Попарное покрытие НЕ гарантирует взаимодействия трёх и более параметров
+# (см. test-design.md, раздел «Ограничения техники»). Ниже — сочетания,
+# которые команда считает рисковыми и добавляет в набор поверх генерации.
+#
+# Формат — TSV без строки заголовка, порядок колонок как в cases.txt:
+# card_lookup  card_status  expiry  amount_vs_daily  amount_vs_monthly
+# amount_vs_balance  daily_usage  bin_lookup  cms_availability  terminal_type
+
+# CR-1: сквозной happy-path с суммой ровно на границе ON (amount = availableBalance)
+found	ACTIVE	valid	below	below	equal	no_usage	available	ok	ecom
+
+# CR-2: граница MMYY (текущий месяц) в связке с полным happy-path
+found	ACTIVE	current_month	below	below	below	no_usage	available	ok	pos
+
+# CR-3: все лимиты и срок действия валидны, недостаточно только баланса → 51
+found	ACTIVE	valid	below	below	above	no_usage	available	ok	ecom
+
+# CR-4: graceful degradation bin-lookup (недоступен) при полном happy-path
+found	ACTIVE	valid	below	below	below	no_usage	unavailable	ok	atm
