@@ -165,7 +165,9 @@ class CardServiceImplTest {
     @DisplayName("getCards: limit и offset не заданы -> подставляются значения по умолчанию")
     void shouldUseDefaultsWhenPaginationIsNotProvided() {
         // Arrange
-        when(settings.maxPageLimit()).thenReturn(100);
+        // settings.maxPageLimit() не стабим: в CardServiceImpl он читается только
+        // когда limit != null, а здесь limit null — иначе Mockito упадёт на
+        // UnnecessaryStubbing.
         when(defaults.pageLimit()).thenReturn(20);
         when(defaults.pageOffset()).thenReturn(0L);
         when(cardRepository.findCards(20, 0L, null, null, null, null, null))
