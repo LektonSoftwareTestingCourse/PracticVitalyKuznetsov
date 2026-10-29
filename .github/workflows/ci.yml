@@ -34,6 +34,10 @@ on:
     - 'scripts/smoke-test.ps1'
     - 'scripts/load-smoke.sh'
     - 'tz/**'
+  # Ручной запуск: Actions → CI Pipeline → Run workflow (выбрать ветку).
+  # Нужен для коммитов, затронувших только docs/** или *.md: такие пути
+  # перечислены в paths-ignore выше, и push не создаёт нового прогона.
+  workflow_dispatch:
 
 # Отменяем предыдущие незавершённые прогоны в том же репозитории/ветке.
 concurrency:
